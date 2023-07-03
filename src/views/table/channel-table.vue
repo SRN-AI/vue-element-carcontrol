@@ -105,7 +105,7 @@
           <el-button
             type="danger"
             :disabled="scope.row.channelEnabled === true ? false : true"
-            @click="toDelete(scope.row)"
+            @click="goToVideoPage(scope.row)"
           >控制</el-button>
         </template>
       </el-table-column>
@@ -494,8 +494,12 @@ export default {
         imgElement.msRequestFullscreen()
       }
     },
-    goToVideoPage() {
-      this.$router.push('/control')
+    goToVideoPage(row) {
+      const videoName = row.name;
+      this.$router.push({
+        path: '/control',
+        query: { videoName: videoName }
+      });
     }
   }
 }

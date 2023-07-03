@@ -10,8 +10,8 @@ import Layout from '@/layout'
 import componentsRouter from './modules/components'
 import chartsRouter from './modules/charts'
 import tableRouter from './modules/table'
+import controlRouter from './modules/control'
 import nestedRouter from './modules/nested'
-import Control from '@/views/control/control'
 
 /**
  * Note: sub-menu only appear when route children.length >= 1
@@ -190,6 +190,7 @@ export const asyncRoutes = [
   chartsRouter,
   nestedRouter,
   tableRouter,
+  controlRouter,
 
   {
     path: '/example',
@@ -234,11 +235,6 @@ export const asyncRoutes = [
         meta: { title: 'Tab', icon: 'tab' }
       }
     ]
-  },
-  {
-    path: '/control',
-    name: 'Control',
-    component: Control
   },
 
   {
