@@ -161,7 +161,7 @@ export default {
       this.percentage.ptzPercentage = mapValue(rightStickX,-1,1,0,100);
       // this.pitchPercentage = Math.round(rightStickX * 100);
       this.percentage.pitchPercentage = mapValue(rightStickY,-1,1,0,100);
-      this.publish.payload=this.percentage.toJSON()
+      this.publish.payload=JSON.stringify(this.percentage);
       this.doPublish();
     },
     pollGamepadState() {
