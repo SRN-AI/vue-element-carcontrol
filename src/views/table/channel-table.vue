@@ -117,7 +117,7 @@
 import { fetchPv, createArticle, updateArticle } from '@/api/article'
 import waves from '@/directive/waves' // waves directive
 import { parseTime } from '@/utils'
-import { getChannelList } from '@/api/table'
+import { getChannelList,updateAllSwitch } from '@/api/table'
 import axios from 'axios'
 const calendarTypeOptions = [
   { key: 'CN', display_name: 'China' },
@@ -133,14 +133,15 @@ const calendarTypeKeyValue = calendarTypeOptions.reduce((acc, cur) => {
 }, {})
 
 export default {
-  name: 'ComplexTable',
   directives: { waves },
   filters: {
     statusFilter(status) {
       const statusMap = {
         published: 'success',
         draft: 'info',
-        deleted: 'danger'
+        deleted: 'danger',
+        true:'success',
+        false:'danger'
       }
       return statusMap[status]
     },
@@ -155,6 +156,7 @@ export default {
       total: 0,
       listLoading: true,
       totalSwitch: false,
+      importanceOptions: [1, 2, 3],
       listQuery: {
         page: 1,
         limit: 20,
@@ -163,7 +165,6 @@ export default {
         type: undefined,
         sort: '+id'
       },
-      importanceOptions: [1, 2, 3],
       calendarTypeOptions,
       sortOptions: [{ label: 'ID Ascending', key: '+id' }, { label: 'ID Descending', key: '-id' }],
       statusOptions: ['published', 'draft', 'deleted'],
@@ -194,7 +195,7 @@ export default {
   methods: {
     getList() {
       this.listLoading = true
-      getChannelList(this.getChannelList).then(response => {
+      getChannelList().then(response => {
         this.list = response.data.items
         this.total = response.data.total
         this.list.forEach(row => {
@@ -243,75 +244,6 @@ export default {
         type: ''
       }
     },
-    handleCreate() {
-      this.resetTemp()
-      this.dialogStatus = 'create'
-      this.dialogFormVisible = true
-      this.$nextTick(() => {
-        this.$refs['dataForm'].clearValidate()
-      })
-    },
-    createData() {
-      this.$refs['dataForm'].validate((valid) => {
-        if (valid) {
-          this.temp.id = parseInt(Math.random() * 100) + 1024 // mock a id
-          this.temp.author = 'vue-element-admin'
-          createArticle(this.temp).then(() => {
-            this.list.unshift(this.temp)
-            this.dialogFormVisible = false
-            this.$notify({
-              title: 'Success',
-              message: 'Created Successfully',
-              type: 'success',
-              duration: 2000
-            })
-          })
-        }
-      })
-    },
-    handleUpdate(row) {
-      this.temp = Object.assign({}, row) // copy obj
-      this.temp.timestamp = new Date(this.temp.timestamp)
-      this.dialogStatus = 'update'
-      this.dialogFormVisible = true
-      this.$nextTick(() => {
-        this.$refs['dataForm'].clearValidate()
-      })
-    },
-    updateData() {
-      this.$refs['dataForm'].validate((valid) => {
-        if (valid) {
-          const tempData = Object.assign({}, this.temp)
-          tempData.timestamp = +new Date(tempData.timestamp) // change Thu Nov 30 2017 16:41:05 GMT+0800 (CST) to 1512031311464
-          updateArticle(tempData).then(() => {
-            const index = this.list.findIndex(v => v.id === this.temp.id)
-            this.list.splice(index, 1, this.temp)
-            this.dialogFormVisible = false
-            this.$notify({
-              title: 'Success',
-              message: 'Update Successfully',
-              type: 'success',
-              duration: 2000
-            })
-          })
-        }
-      })
-    },
-    handleDelete(row, index) {
-      this.$notify({
-        title: 'Success',
-        message: 'Delete Successfully',
-        type: 'success',
-        duration: 2000
-      })
-      this.list.splice(index, 1)
-    },
-    handleFetchPv(pv) {
-      fetchPv(pv).then(response => {
-        this.pvData = response.data.pvData
-        this.dialogPvVisible = true
-      })
-    },
     formatJson(filterVal) {
       return this.list.map(v => filterVal.map(j => {
         if (j === 'timestamp') {
@@ -341,76 +273,44 @@ export default {
           console.error(error)
         })
     },
-    handleSwitchOn() {
-      // 总开关状态改变时触发的方法
-      const switchStatus = 'on'
-      axios
-        .post(`http://localhost:8081/udp/switch?status=${switchStatus}`)
-        .then(resp => {
-          // 处理开关请求的响应
-          console.log(resp.data)
-          // eslint-disable-next-line no-constant-condition
-          if ((resp.data = 'true')) {
-            this.$notify({
-              title: '成功',
-              message: '开启所有通道成功',
-              type: 'success'
-            })
-          } else {
-            this.$notify({
-              title: '失败',
-              message: '开启所有通道失败',
-              type: 'warning'
-            })
-          }
-        })
-        .catch(error => {
-          // 处理请求错误
-          console.error(error)
-        })
-    },
-    handleSwitchOff() {
-      // 总开关状态改变时触发的方法
-      const switchStatus = 'off'
-      axios
-        .post(`http://localhost:8081/udp/switch?status=${switchStatus}`)
-        .then(resp => {
-          // 处理开关请求的响应
-          console.log(resp.data)
-          // eslint-disable-next-line no-constant-condition
-          if ((resp.data = 'false')) {
-            this.$notify({
-              title: '成功',
-              message: '关闭所有通道成功',
-              type: 'success'
-            })
-          } else {
-            this.$notify({
-              title: '失败',
-              message: '关闭所有通道失败',
-              type: 'warning'
-            })
-          }
-        })
-        .catch(error => {
-          // 处理请求错误
-          console.error(error)
-        })
-    },
     handleSwitchChange() {
       // 总开关状态改变时触发的方法
       const switchStatus = this.totalSwitch ? 'on' : 'off'
-      axios
-        .post(`http://localhost:8081/udp/switch?status=${switchStatus}`)
+      updateAllSwitch(switchStatus)
         .then((resp) => {
-          // 处理开关请求的响应
-          console.log(resp.data)
-          this.totalSwitch = resp.data // 更新 totalSwitch 的值;
-        })
-        .catch((error) => {
-          // 处理请求错误
-          console.error(error)
-        })
+                // 处理开关请求的响应
+                console.log(resp)
+                this.totalSwitch = resp // 更新 totalSwitch 的值;
+                if (resp===true){
+                  this.$notify({
+                    title: '打开成功',
+                    message: '打开所有通道成功',
+                    type: 'success'
+                  })
+                }else if(resp===false){
+                  this.$notify({
+                    title: '关闭成功',
+                    message: '关闭所有通道成功',
+                    type: 'success'
+                  })
+                }else {
+                  this.$message({
+                    message: '操作失败',
+                    type: 'fail'
+                  })
+                }
+              })
+      // axios
+      //   .post(`http://localhost:8081/udp/switch?status=${switchStatus}`)
+      //   .then((resp) => {
+      //     // 处理开关请求的响应
+      //     console.log(resp.data)
+      //     this.totalSwitch = resp.data // 更新 totalSwitch 的值;
+      //   })
+      //   .catch((error) => {
+      //     // 处理请求错误
+      //     console.error(error)
+      //   })
     },
     handleGetSwitchStatus() {
       // 总开关状态改变时触发的方法

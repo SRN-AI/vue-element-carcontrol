@@ -5,35 +5,35 @@
         class="footer-progress"
         ref="leftProgress"
         type="circle"
-        :percentage="leftPercentage"
-        stroke-width="10"
+        :percentage="percentage.leftPercentage"
+        stroke-width=10
         :format="formatLeft"
       ></el-progress>
       <el-progress
         class="footer-progress"
         ref="ptzProgress"
         type="circle"
-        :percentage="ptzPercentage"
+        :percentage="percentage.ptzPercentage"
         color="orange"
-        stroke-width="10"
+        stroke-width=10
         :format="PTZLevel"
       ></el-progress>
       <el-progress
         class="footer-progress"
         ref="rightProgress"
         type="circle"
-        :percentage="rightPercentage"
+        :percentage="percentage.rightPercentage"
         color="yellow"
-        stroke-width="10"
+        stroke-width=10
         :format="formatRight"
       ></el-progress>
       <el-progress
         class="footer-progress"
         ref="pitchProgress"
         type="circle"
-        :percentage="pitchPercentage"
+        :percentage="percentage.pitchPercentage"
         color="purple"
-        stroke-width="10"
+        stroke-width=10
         :format="PTZPitch"
       ></el-progress>
     </div>
@@ -41,41 +41,77 @@
       <el-progress
         class="footer-progress"
         type="dashboard"
-        :percentage="backPercentage"
+        :percentage="percentage.backPercentage"
         color="red"
-        stroke-width="10"
+        stroke-width=10
         :format="formatBack"
       ></el-progress>
       <el-progress
         class="footer-progress"
         type="dashboard"
-        :percentage="forwardPercentage"
+        :percentage="percentage.forwardPercentage"
         text="speed"
         color="green"
-        stroke-width="10"
+        stroke-width=10
         :format="formatForward"
       ></el-progress>
     </div>
   </div>
 </template>
 <script>
+import mqtt from "mqtt";
+
 export default {
   name: "Control",
   data() {
     return {
-      leftPercentage: 0,
-      rightPercentage: 0,
-      ptzPercentage: 50,
-      pitchPercentage: 50,
-      forwardPercentage: 0,
-      backPercentage: 0,
+      percentage:{
+        leftPercentage: 0,
+        rightPercentage: 0,
+        ptzPercentage: 50,
+        pitchPercentage: 50,
+        forwardPercentage: 0,
+        backPercentage: 0,
+      },
       gamepadIndex: null,
       backgroundImagePath: '', // 初始为空字符串，用于存储背景图片的Base64数据
       shouldRefresh: true,
-      videoName: null
+      videoName: null,
+      connection: {
+        protocol: "ws",
+        host: "82.157.52.81",
+        // ws: 8083; wss: 8084
+        port: 8083,
+        endpoint: "/mqtt",
+        // for more options, please refer to https://github.com/mqttjs/MQTT.js#mqttclientstreambuilder-options
+        clean: true,
+        connectTimeout: 30 * 1000, // ms
+        reconnectPeriod: 4000, // ms
+        clientId: "emqx_vue_" + Math.random().toString(16).substring(2, 8),
+        // auth
+        username: "test",
+        password: "sunrongnan",
+      },
+      publish: {
+        topic: "sunrongnan",
+        qos: 0,
+        payload: '{ "msg": "Hello, I am browser." }',
+      },
+      receiveNews: "",
+      qosList: [0, 1, 2],
+      client: {
+        connected: false,
+      },
+      subscribeSuccess: false,
+      connecting: false,
+      retryTimes: 0,
     };
   },
   created() {
+    this.publish.topic=this.videoName;
+    this.createConnection();
+    // this.publish.payload=this.percentage.toJSON()
+    this.doPublish();
   },
   computed: {
     backgroundImageUrl() {
@@ -110,25 +146,27 @@ export default {
       // Handle left and right triggers
       const leftTrigger = buttons[6].value;
       const rightTrigger = buttons[7].value;
-      this.backPercentage = Math.round(leftTrigger * 100);
-      this.forwardPercentage = Math.round(rightTrigger * 100);
+      this.percentage.backPercentage = Math.round(leftTrigger * 100);
+      this.percentage.forwardPercentage = Math.round(rightTrigger * 100);
 
       // Handle left stick for direction control
       const leftStickX = axes[0];
       if (leftStickX > 0) {
-        this.leftPercentage = 0;
-        this.rightPercentage = Math.round(leftStickX * 100);
+        this.percentage.leftPercentage = 0;
+        this.percentage.rightPercentage = Math.round(leftStickX * 100);
       } else {
-        this.leftPercentage = Math.round(-leftStickX * 100);
-        this.rightPercentage = 0;
+        this.percentage.leftPercentage = Math.round(-leftStickX * 100);
+        this.percentage.rightPercentage = 0;
       }
 
       // Handle right stick for PTZ control
       const rightStickY = axes[3];
       const rightStickX = axes[2];
-      this.ptzPercentage = mapValue(rightStickX,-1,1,0,100);
+      this.percentage.ptzPercentage = mapValue(rightStickX,-1,1,0,100);
       // this.pitchPercentage = Math.round(rightStickX * 100);
-      this.pitchPercentage = mapValue(rightStickY,-1,1,0,100);
+      this.percentage.pitchPercentage = mapValue(rightStickY,-1,1,0,100);
+      this.publish.payload=this.percentage.toJSON()
+      this.doPublish();
     },
     pollGamepadState() {
       if (this.gamepadIndex !== null) {
@@ -136,6 +174,63 @@ export default {
       }
 
       requestAnimationFrame(this.pollGamepadState);
+    },
+    initData() {
+      this.client = {
+        connected: false,
+      };
+      this.retryTimes = 0;
+      this.connecting = false;
+      this.subscribeSuccess = false;
+    },
+    handleOnReConnect() {
+      this.retryTimes += 1;
+      if (this.retryTimes > 5) {
+        try {
+          this.client.end();
+          this.initData();
+          this.$message.error("Connection maxReconnectTimes limit, stop retry");
+        } catch (error) {
+          this.$message.error(error.toString());
+        }
+      }
+    },
+    doPublish() {
+      const { topic, qos, payload } = this.publish
+      this.client.publish(topic, payload, { qos }, error => {
+        if (error) {
+          console.log('Publish error', error)
+        }
+      })
+    },
+    createConnection() {
+      try {
+        this.connecting = true;
+        const { protocol, host, port, endpoint, ...options } = this.connection;
+        const connectUrl = `${protocol}://${host}:${port}${endpoint}`;
+        this.client = mqtt.connect(connectUrl, options);
+        if (this.client.on) {
+          this.client.on("connect", () => {
+            this.connecting = false;
+            this.$message({
+              message: '连接mqtt服务器成功',
+              type: 'success'
+            })
+            console.log("Connection succeeded!");
+          });
+          this.client.on("reconnect", this.handleOnReConnect);
+          this.client.on("error", (error) => {
+            console.log("Connection failed", error);
+          });
+          this.client.on("message", (topic, message) => {
+            this.receiveNews = this.receiveNews.concat(message);
+            console.log(`Received message ${message} from topic ${topic}`);
+          });
+        }
+      } catch (error) {
+        this.connecting = false;
+        console.log("mqtt.connect error", error);
+      }
     },
   },
   mounted() {
