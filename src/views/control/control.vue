@@ -108,10 +108,6 @@ export default {
     };
   },
   created() {
-    this.publish.topic=this.videoName;
-    this.createConnection();
-    // this.publish.payload=this.percentage.toJSON()
-    this.doPublish();
   },
   computed: {
     backgroundImageUrl() {
@@ -236,6 +232,12 @@ export default {
   mounted() {
     this.videoName = this.$route.query.videoName;
     const socket = new WebSocket('ws://localhost:8333/myWs/'+this.videoName);
+    this.publish.topic=this.videoName;
+    this.publish.payload=JSON.stringify(this.percentage);
+    console.log(JSON.stringify(this.percentage));
+    console.log(this.publish.topic);
+    this.createConnection();
+    this.doPublish();
     socket.addEventListener('message', (event) => {
       const imageData = event.data; // 接收到的Base64图片数据
       // this.backgroundImage = `data:image/jpeg;base64, ${imageData}`;
