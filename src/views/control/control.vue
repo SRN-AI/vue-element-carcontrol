@@ -73,6 +73,14 @@ export default {
         forwardPercentage: 0,
         backPercentage: 0,
       },
+      sendToCarData:{
+        turnLeft: 0,
+        turnRight: 0,
+        ptzLevel: 90,
+        ptzPitch: 90,
+        goForward: 0,
+        goBack: 0,
+      },
       gamepadIndex: null,
       backgroundImagePath: '', // 初始为空字符串，用于存储背景图片的Base64数据
       shouldRefresh: true,
@@ -145,22 +153,33 @@ export default {
       this.percentage.backPercentage = Math.round(leftTrigger * 100);
       this.percentage.forwardPercentage = Math.round(rightTrigger * 100);
 
+      this.sendToCarData.goBack = mapValue(leftTrigger,0,1,0,180);
+      this.sendToCarData.goForward = mapValue(rightTrigger,0,1,0,180);
+
       // Handle left stick for direction control
       const leftStickX = axes[0];
       if (leftStickX > 0) {
         this.percentage.leftPercentage = 0;
         this.percentage.rightPercentage = Math.round(leftStickX * 100);
+
+        this.sendToCarData.turnLeft = 0;
+        this.sendToCarData.turnRight = mapValue(leftStickX,0,1,0,180);
       } else {
         this.percentage.leftPercentage = Math.round(-leftStickX * 100);
         this.percentage.rightPercentage = 0;
+
+        this.sendToCarData.turnLeft = 0;
+        this.sendToCarData.turnRight = mapValue(leftStickX,-1,0,0,180);
       }
 
       // Handle right stick for PTZ control
       const rightStickY = axes[3];
       const rightStickX = axes[2];
       this.percentage.ptzPercentage = mapValue(rightStickX,-1,1,0,100);
-      // this.pitchPercentage = Math.round(rightStickX * 100);
       this.percentage.pitchPercentage = mapValue(rightStickY,-1,1,0,100);
+      this.sendToCarData.ptzLevel = mapValue(rightStickX,-1,1,0,180);
+      this.sendToCarData.ptzPitch = mapValue(rightStickY,-1,1,0,180);
+      // 发送到mqtt服务器
       this.publish.payload=JSON.stringify(this.percentage);
       this.doPublish();
     },
@@ -234,10 +253,10 @@ export default {
     const socket = new WebSocket('ws://localhost:8333/myWs/'+this.videoName);
     this.publish.topic=this.videoName;
     this.publish.payload=JSON.stringify(this.percentage);
-    console.log(JSON.stringify(this.percentage));
+    // console.log(JSON.stringify(this.percentage));
     console.log(this.publish.topic);
     this.createConnection();
-    this.doPublish();
+    // this.doPublish();
     socket.addEventListener('message', (event) => {
       const imageData = event.data; // 接收到的Base64图片数据
       // this.backgroundImage = `data:image/jpeg;base64, ${imageData}`;
